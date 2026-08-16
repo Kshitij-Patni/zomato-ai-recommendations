@@ -1,0 +1,15 @@
+# Zomato Restaurant Recommendations — AI-Powered
+
+node_modules/
+.env
+.env.local
+backend/data/zomato.json
+.DS_Store
+*.log
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Stitch design assets (not needed in repo)
+stitch_zomato_ai_recommendation_system/
