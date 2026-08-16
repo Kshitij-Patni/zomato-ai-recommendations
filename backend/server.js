@@ -18,7 +18,10 @@ const PORT = process.env.PORT || 3000;
 // ── Middleware ──────────────────────────────────────────────────────────
 
 // CORS — allow frontend origin (same-origin in prod, any in dev)
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "*",
+  methods: ["GET", "POST"],
+}));
 
 // JSON body parsing with size limit (edge case A-4)
 app.use(express.json({ limit: "10kb" }));
@@ -34,8 +37,7 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// ── Static file serving (frontend) ────────────────────────────────────
-app.use(express.static(path.join(__dirname, "..", "frontend")));
+
 
 // ── Routes ─────────────────────────────────────────────────────────────
 
@@ -99,10 +101,7 @@ app.use("/api/{*path}", (req, res) => {
   });
 });
 
-// Fallback: serve frontend index.html for non-API routes (SPA support)
-app.get("{*path}", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "frontend", "index.html"));
-});
+
 
 // ── Global error handler ───────────────────────────────────────────────
 app.use((err, req, res, next) => {
