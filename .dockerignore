@@ -1,0 +1,10 @@
+# Ignore everything except backend
+frontend/
+stitch_zomato_ai_recommendation_system/
+Docs/
+.git/
+.DS_Store
+*.md
+node_modules/
+backend/node_modules/
+backend/.env
