@@ -22,6 +22,7 @@ COPY backend/data/ ./data/
 # Railway injects PORT as env var; default to 3000
 ENV PORT=3000
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=450"
 
 EXPOSE 3000
 

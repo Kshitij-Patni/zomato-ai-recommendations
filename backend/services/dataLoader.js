@@ -15,12 +15,14 @@
 
 const fs = require("fs");
 const path = require("path");
+const parquet = require("parquetjs-lite");
 
 // ── Constants ──────────────────────────────────────────────────────────
 const DATASET_ID = "ManikaSaini/zomato-restaurant-recommendation";
 const HF_API_BASE = "https://datasets-server.huggingface.co";
 const DATA_DIR = path.join(__dirname, "..", "data");
 const CACHE_FILE = path.join(DATA_DIR, "zomato.json");
+const PARQUET_FILE = path.join(DATA_DIR, "zomato.parquet");
 const BATCH_SIZE = 1000; // rows per API request
 const BUDGET_TIERS = {
   LOW: { label: "Low", max: 500 },
@@ -355,11 +357,62 @@ function loadFromCache() {
   return records;
 }
 
+// ── Load from Parquet file (pre-cleaned data, low memory) ──────────────
+async function loadFromParquet() {
+  if (!fs.existsSync(PARQUET_FILE)) {
+    return null;
+  }
+
+  console.log("📂 Loading from Parquet file...");
+  const reader = await parquet.ParquetReader.openFile(PARQUET_FILE);
+  const cursor = reader.getCursor();
+  const records = [];
+  let row;
+
+  while ((row = await cursor.next())) {
+    // Map parquet column names back to app field names
+    records.push({
+      name: row.name || "",
+      location: (row.area || "").toLowerCase(),
+      listed_in_city: (row.zone || "").toLowerCase(),
+      address: row.address || "",
+      cuisines: parseCuisines(row.cuisines_string),
+      cuisines_string: row.cuisines_string || "Unknown",
+      cost: row.cost || 0,
+      budget_tier: row.budget_tier || getBudgetTier(row.cost || 0),
+      rating: row.rating || 0,
+      votes: row.votes || 0,
+      online_order: !!row.online_order,
+      book_table: !!row.book_table,
+      rest_type: row.rest_type || "",
+      dish_liked: row.dish_liked || "",
+      url: row.url || "",
+    });
+  }
+
+  await reader.close();
+  console.log(`   Loaded ${records.length} records from Parquet`);
+  return records;
+}
+
 // ── Main: Load data (fetch or cache) ───────────────────────────────────
 async function loadData() {
-  // Try loading from cache first
+  // Priority 1: JSON cache (fastest)
   let records = loadFromCache();
 
+  // Priority 2: Parquet file (pre-cleaned, low memory — ideal for Railway)
+  if (!records) {
+    try {
+      records = await loadFromParquet();
+      if (records && records.length > 0) {
+        saveToCache(records); // Cache for faster restarts
+      }
+    } catch (err) {
+      console.warn("⚠️ Failed to load from Parquet:", err.message);
+    }
+  }
+
+  // Priority 3: Download CSV from HuggingFace (high memory — local dev only)
   if (!records) {
     try {
       const rawRecords = await fetchFromHuggingFace();
@@ -367,9 +420,6 @@ async function loadData() {
       saveToCache(records);
     } catch (err) {
       console.error("❌ Failed to fetch dataset from Hugging Face:", err.message);
-
-      // If cache exists but was invalid, we already returned null above
-      // No recovery possible — throw
       throw new Error(
         "Dataset unavailable — cannot start server. " +
         "Check your internet connection or provide a cached zomato.json file."
